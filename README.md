@@ -60,6 +60,8 @@ dart run bin/nsusbloader.dart scan /path/to/library
 dart run bin/nsusbloader.dart split example.nsp example-split.nsp
 dart run bin/nsusbloader.dart merge example-split.nsp merged.nsp
 dart run bin/nsusbloader.dart usb-list
+# Standalone CLI bundle (keep its bin/ and lib/ directories together):
+dart build cli --output build/cli --target bin/nsusbloader.dart
 ```
 
 ## Validation and scope

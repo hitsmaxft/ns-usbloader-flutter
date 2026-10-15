@@ -18,6 +18,8 @@ Validated locally on macOS arm64 on 2026-10-15, using the shared Flutter 3.47.7 
 
 The 4,097-byte CLI fixture's SHA-256 was `a16560d668b843fb3be99ace41dbd18471f342bd3255a1d21204b35e43f74436`. Temporary source/output files were removed after the check. The native CLI bundle is retained under ignored `build/cli/bundle/`; it is not a desktop GUI bundle.
 
+Application implementation revision: `4715374042bac11299af2e1c176de29f7ddbf5d4`. The follow-up validation commit adds the reproducible smoke tool and host build matrix without changing application behavior.
+
 ## Automated coverage
 
 - Exact random access across split boundaries; valid EOF, invalid ranges, missing/unequal/empty/link segments, source changes, output preservation and cancellation cleanup.
@@ -40,3 +42,5 @@ The test loads fonts from the existing SDK for readable raster output. Only orig
 ## Resource boundaries
 
 No Nix evaluation, Rust build, OS update, device injection or console installation was run. The shared Flutter SDK was reused; the attempted macOS build populated its missing standard macOS engine artifacts. That shared SDK is preserved. Project test caches are disposable; the CLI bundle and screenshot evidence are retained. No changes were made to nsp-dawrin, its active processes, compatibility symlinks, runtime data or NAS mount.
+
+After checking for open users with `lsof`, approximately 48 MiB of task-generated `build/test_cache` and `build/unit_test_assets` were removed. The retained build directory is 7.1 MiB (including the 6.9 MiB CLI bundle); `.dart_tool` is 34 MiB and retained for dependency/hook reuse. `df` reports 60 GiB available; rounded filesystem figures do not establish an exact physical reclamation amount. No Nix store paths were deleted. The optional global read-only Nix dead-path inventory was stopped when it outlasted this bounded project audit.
