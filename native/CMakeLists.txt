@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.16)
+project(nsusb_rcm C)
+add_library(nsusb_rcm SHARED rcm_trigger.c)
+if(WIN32)
+  target_link_libraries(nsusb_rcm PRIVATE setupapi)
+endif()

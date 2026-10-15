@@ -1,266 +1,80 @@
-<h1 align="center"><img src="screenshots/ApplicationLogo.svg" alt="NS-USBloader" width="450px"/></h1>
+# NS-USBloader Flutter
 
-![License](https://img.shields.io/badge/License-GPLv3-blue.svg) ![Releases](https://img.shields.io/github/downloads/developersu/ns-usbloader/total.svg) ![LatestVer](https://img.shields.io/github/release/developersu/ns-usbloader.svg) [![status-badge](https://ci.redrise.ru/api/badges/12/status.svg)](https://ci.redrise.ru/repos/12) [![Packaging status](https://repology.org/badge/tiny-repos/ns-usbloader.svg)](https://repology.org/project/ns-usbloader/versions)
+An independent, Java-free desktop port of [NS-USBloader](https://github.com/developersu/ns-usbloader), targeting macOS, Windows and Linux. Dart owns the library, transfers, payload downloads and file tools. Flutter provides the desktop UI; libusb and a small C bridge provide USB access.
 
-NS-USBloader is:
-* A PC-side installer for **[Huntereb/Awoo-Installer](https://github.com/Huntereb/Awoo-Installer)** / other compatible installers (USB and Network supported) and **[XorTroll/Goldleaf](https://github.com/XorTroll/Goldleaf)** (USB) NSP installer. 
-Alternative to default **usb_install_pc.py**, **remote_install_pc.py**, **GoldTree**/**Quark**. 
-* RCM payload tool that works on Windows, macOS (Intel and Apple Silicon) and Linux (x86, amd64 and Raspberry Pi ARM).
-* It's a tool for creating split files! 
-* Also you can use it for merging split-files into one :)
+![Library with original synthetic titles](docs/screenshots/library.png)
 
+## What is implemented
 
-[Click here for Android version ;)](https://github.com/developersu/ns-usbloader-mobile)
+- A cover-based library for NSP, XCI, NSZ and XCZ files, including validated numbered split directories. Folder scans skip symlinks, deduplicate paths and reuse unchanged metadata.
+- One game card with separate Base, Updates and DLC groups. Copies, formats and versions remain individually selectable. Orphan content stays visible. No automatic grouping by name.
+- Identity from bounded, plaintext PFS0/CNMT metadata when available, then explicit filename Title IDs, plus persistent manual overrides. Encrypted NCA metadata is not decrypted; filename IDs are visibly distinguished from package metadata. Ambiguous name matches remain suggestions.
+- Optional [Title DB](https://github.com/blawar/titledb) metadata, language selection, English fallback, ETag refresh and external cover caching. Only display fields enter the persistent compact index.
+- Awoo-compatible USB and network adapters. Network transfer supports full GET, HEAD, normal/open/suffix byte ranges, split packages and unique paths for duplicate filenames. Transfers serve only the selected manifest.
+- Official Hekate and Atmosphère fusee release selection, bounded downloads, atomic cache publication and verification against published SHA-256 digests when available. Downloads never trigger injection. Cached payloads remain usable independently of release discovery.
+- RCM payload framing and injection transport for vulnerable, unpatched hardware. USB operations run in a worker isolate. The selected device is rechecked before opening, and Linux/Windows trigger helpers contain no JNI.
+- Cancellable split/merge with staging output, input preservation and existing-output refusal. A CLI shares the same domain APIs as the GUI.
 
-With GUI and cookies. Works on Windows, macOS and Linux.
-### Let's stay in touch:
-#### [→ Independent source code storage](https://git.redrise.ru/desu/ns-usbloader)
-#### [→ Mirror, issues tracker, place to send PRs](https://github.com/developersu/ns-usbloader)
-#### [→ Nightly builds](https://redrise.ru/builds/ns-usbloader/)
+![Per-game content selection](docs/screenshots/content.png)
 
-[Support/Donate](#support-this-app)
+Screenshots show only the application, invented titles and procedural artwork. No commercial game assets, keys, firmware or downloaded payload binaries ship in this repository.
 
-Sometimes I add new posts about this project [on my blog page](https://developersu.blogspot.com/search/label/NS-USBloader).
+## Run
 
-<img src="screenshots/1.png" alt="screenshot" width="250"/>  <img src="screenshots/2.png" alt="screenshot" width="250"/>  
-<img src="screenshots/3.png" alt="screenshot" width="250"/>  <img src="screenshots/4.png" alt="screenshot" width="250"/>  
-<img src="screenshots/5.png" alt="screenshot" width="250"/>
+Use an existing Flutter SDK; this checkout does not download its own SDK. The development environment uses Flutter 3.47.7 / Dart 3.13.5.
 
-#### License
-
-[GNU General Public License version 3](https://github.com/developersu/ns-usbloader/blob/master/LICENSE), or (at your option) any later version.
-
-#### Used libraries & resources
-* [OpenJFX](https://wiki.openjdk.java.net/display/OpenJFX/Main)
-* [usb4java](https://mvnrepository.com/artifact/org.usb4java/usb4java)
-* Few icons taken from: [materialdesignicons.com](http://materialdesignicons.com/)
-* Information, ideas and data from ['fusee-launcher'](https://github.com/reswitched/fusee-launcher) application
-* [Apache Commons CLI](https://commons.apache.org/proper/commons-cli/)
-
-### List of awesome code contributors, translators and other great people!
-
-* [Pablo Curiel (DarkMatterCore)](https://github.com/DarkMatterCore)
-* [wolfposd](https://github.com/wolfposd)
-* [agungrbudiman](https://github.com/agungrbudiman)
-* Perfect algorithms and great examples taken from mrdude project [mrdude2478/IPS_Patch_Creator](https://github.com/mrdude2478/IPS_Patch_Creator/)
-
-* French by [Stephane Meden (JackFromNice)](https://github.com/JackFromNice) 
-* Italian by [unbranched](https://github.com/unbranched)
-* Korean by [DDinghoya](https://github.com/DDinghoya)
-* Portuguese by [almircanella](https://github.com/almircanella)
-* Spanish by [/u/cokimaya007](https://www.reddit.com/u/cokimaya007), [Kuziel Alejandro](https://github.com/Uzi-Oni)
-* Chinese (Simplified) by [Huang YunKun (htynkn)](https://github.com/htynkn), [FFT9 (XXgame Group)](http://xxgame.net/)
-* Chinese (Traditional) by [qazrfv1234](https://github.com/qazrfv1234), [FFT9 (XXgame Group)](http://xxgame.net/)
-* German by [Swarsele](https://github.com/Swarsele)
-* Vietnamese by [Hai Phan Nguyen (pnghai)](https://github.com/pnghai)
-* Czech by [Spenaat](https://github.com/spenaat)
-* Arabic by [eslamabdel](https://github.com/eslamabdel)
-* Romanian by [Călin Ilie](https://github.com/calini)
-* Swedish by [Daniel Nylander](https://github.com/yeager)
-* Japanese by [kuragehime](https://github.com/kuragehimekurara1)
-* Ryukyuan languages by [kuragehime](https://github.com/kuragehimekurara1)
-* Turkish language by [Erimsaholut](https://github.com/Erimsaholut)
-* Serbian (Latin) translation [BlytheScythe](https://github.com/BlytheScythe)
-* Catalan translation [segured928](https://github.com/segured928)
-
-* Angelo Elias Dalzotto makes packages in AUR
-* Phoenix[Msc] provides his shiny Mac M1 for debug
-
-### System requirements
-
-- JDK 17 for macOS and Linux
-- libusb, if you have a Mac with Apple Silicon (install via `brew install libusb`)
-
-### Supported Goldleaf versions
-| Goldleaf version | NS-USBloader version |
-|------------------|----------------------|
-| v0.5             | v0.4 - v0.5.2, v0.8+ |
-| v0.6             | none                 |
-| v0.6.1           | v0.6                 |
-| v0.7 - 0.7.3     | v0.7+                |
-| v0.8 - 0.9       | v1.0+                |
-| v0.10 - 1.0.0    | v6.0+                |
-| v1.1.0 - 1.1.1   | none                 |
-| v1.2.0+          | v6.0+                |
-
-where '+' means 'any next NS-USBloader version'.
-
-### Awoo Installer and compatible applications support
-
-Awoo Installer uses the same command-set (or 'protocol') to [Adubbz/Tinfoil](https://github.com/Adubbz/Tinfoil/).
-
-A lot of other forks/apps uses the same command-set. To stop speculating about the name it's now called 'Awoo'. It WAS called 'TinFoil' before. Not any more.
-
-### Usage
-##### Linux:
-
-1. Install JRE/JDK 8u60 or higher (openJDK is good. Oracle's one is also good). JavaFX not needed (it's embedded).
-
-2. `root # java -jar /path/to/NS-USBloader.jar`
-
-3. Optional: add user to 'udev' rules to use NS not-from-root-account
-```
-root # vim /etc/udev/rules.d/99-NS.rules
-SUBSYSTEM=="usb", ATTRS{idVendor}=="057e", ATTRS{idProduct}=="3000", MODE="0666"
-root # udevadm control --reload-rules && udevadm trigger
-```
-4. For RCM part
-```
-root # vim /etc/udev/rules.d/99-NS-RCM.rules
-SUBSYSTEM=="usb", ATTRS{idVendor}=="0955", ATTRS{idProduct}=="7321", MODE="0666"
-root # udevadm control --reload-rules && udevadm trigger
+```sh
+flutter pub get
+flutter run -d macos     # or windows / linux on the corresponding host
 ```
 
-5. For HiDPI use scaling like `java -Dglass.gtk.uiScale=150% -jar application.jar`
+macOS needs **full Xcode**, with its command-line tools selected, and CocoaPods if required by the installed Flutter toolchain. Command Line Tools alone cannot build the desktop runner. Install libusb separately (`brew install libusb`); Homebrew paths are discovered automatically. The desktop runner is intentionally unsandboxed so persistent user-selected folders and direct USB access work.
 
-##### Raspberry Pi
+Linux needs Flutter's desktop compiler/GTK prerequisites and libusb (`libusb-1.0.so.0`). The native RCM helper is built and installed by the runner's CMake project. USB device permissions must allow the current user to access the selected device; the app does not run as root or change host permissions.
 
-1. Install JDK: `sudo apt install default-jdk`
+Windows needs Visual Studio's Desktop development with C++ workload. Place the matching architecture's `libusb-1.0.dll` beside the executable, or set `NSUSB_LIBUSB` to its absolute path. RCM additionally requires a compatible libusb-win32/libusbK driver; the oversized trigger is not supported by WinUSB. This implementation refuses Windows RCM when more than one matching device is present. It does not install or replace drivers.
 
-2. For UI install JavaFX: `sudo apt install openjfx`
+`NSUSB_LIBUSB` overrides the libusb path on any platform. `NSUSB_RCM_BRIDGE` overrides the Linux/Windows helper path for CLI development:
 
-3. See steps 3 and 4 from 'Linux' section to  update 'udev'.
-
-##### macOS
-
-Double-click on downloaded .jar file. Follow instructions. Or see 'Linux' section.
-
-Set 'Security & Privacy' settings if needed.
-
-*Please note: JDK 19 is recommended for using on macOS. There are issues already reported from users on Mac with JDK 14.*
-
-##### macOS on Apple Silicon (ARM)
-
-Download application with `-m1.jar` postfix.
-
-Manually install libusb with Homebrew by running `brew install libusb` in your Terminal.
-
-##### Windows: 
-
-* Once application opens click on 'Gear' icon. 
-* Click 'Download and install drivers'
-* Install drivers
-
-#### And how to use it?
-
-The first thing you should do it install Awoo ([Huntereb](https://github.com/Huntereb/Awoo-Installer)) or Goldleaf ([XorTroll](https://github.com/XorTroll/Goldleaf)) on your NS. 
-
-Take a look on app, find where is the option to install from USB and/or Network. Maybe (very old) [this article (about TinFoil)](https://developersu.blogspot.com/2019/02/ns-usbloader-en.html) will be helpful.
-
-#### In details
-
-There are three tabs. First one is main.
-
-##### 'Gamepad' tab.
-
-At the top of you selecting from drop-down application and protocol that you're going to use. For Goldleaf only USB is available. Lamp icon stands for switching themes (light or dark).
-
-Then you may drag-n-drop files (split-files aka folders) to application or use 'Select NSP files' button. Multiple selection for files available. Click it again and select files from another folder it you want, it will be added into the table.
-
-Table.
-
-There you can select checkbox for files that will be sent to application (AW/GL). ~~Since Goldleaf v0.5 allow you only one file transmission per time, only one file is available for selection.~~ 
-
-Also, you can use space to select/un-select files and 'delete' button for deleting. By right-mouse-click you can see context menu where you can delete one OR all items from the table.
-
-For Goldleaf v0.6.1 and NS-USBloader v0.6 (and higher) you will have to use 'Explore content' -> 'Remote PC (via USB)' You will see two drives HOME:/ and VIRT:/. First drive is pointing to your home directory. Second one is reflection of what you've added to table (first application tab). Also VIRT:/ drive have limited functionality in comparison to HOME:/. E.g. you can't write files to this drive since it's not a drive. But don't worry, it won't make any impact on Goldleaf or your NS if you try.
-
-Also, for Goldleaf write files (from NS to PC): You have to 'Stop execution' properly before accessing files transferred from GL. Usually you have to wait 5sec or less. It will guarantee that your files properly written to PC.
-
-##### 'RCM' tab
-
-On this tab you can select payloader like Hekate or LockPick_RCM and send it to NS. Drag-n-drop supported. Also some in-app validations for payload takes place ;)
-
-##### 'Folder with arrows and zeroes' tab
-
-On this tab you can split and merge files. Select 'Split' or 'Merge' and split (or merge). BTW Drag-n-drop supported.
-
-##### 'Gears' tab.
-
-Here you can configure settings for network file transmission. Usually you shouldn't change anything. But it you're cool hacker, go ahead! The most interesting option here is 'Don't serve requests'. Architecture of the Awoo's NET part is working interesting way. When you select in Awoo network NSP transfer, application will wait at port 2000 for the information about where should it take files from. Like '192.168.1.5:6060/my file.nsp'. Usually NS-USBloader serves requests by implementing simplified HTTP server and bringing it up and so on. But if this option selected, you can define path to remote location of the files. For example if you set in settings '192.168.4.2:80/ROMS/NS/' and add in table file 'my file.nsp' then NS-USBloader will simply tell Awoo "Hey, go take files from '192.168.4.2:80/ROMS/NS/my%20file.nsp' ". Of course you have to bring '192.168.4.2' host up and make file accessible from such address (just go install nginx). As I said, this feature is interesting, but I guess won't be popular.
-
-Also here you can:
-* Set 'Auto-check for updates' for checking for updates when application starts, or click button to verify if new version released immediately.
-* Set 'Show only *.nsp in Goldleaf' to filter all files displayed at HOME:/ drive. So only NSP files will appear.
-
-##### 'Dialog with three dots' tab.
-
-That's where all logs dropped. Verbose information about transmissions comes here.
-
-
-##### CLI (command line interface)
-
-To get help run ``$ java -jar ns-usbloader-4.0.jar --help``
-
-```
- -c,--clean                      Remove/reset settings and exit
- -g,--Goldleaf <...>             Install via Goldleaf mode. Check '-g help' for information.
- -h,--help                       Show this help
- -m,--merge <...>                Merge files. Check '-m help' for information.
- -n,--tfn <...>                  Install via Awoo Network mode. Check '-n help' for information.
- -r,--rcm <[PATH/]payload.bin>   Send payload
- -s,--split <...>                Split files. Check '-s help' for information.
- -t,--tinfoil <FILE...>          Install via Awoo USB mode.
- -v,--version                    Show application version
+```sh
+cmake -S native -B build/native
+cmake --build build/native
 ```
 
-For more complex commands help use help argument after the fists key. For example: 
+The standalone helper is Linux/Windows only; macOS uses libusb directly. For multi-configuration Windows builds, point `NSUSB_RCM_BRIDGE` at the DLL under `build/native/Debug` or `Release`.
 
-```
-$ java -jar ns-usbloader-4.0.jar -n help
+## Use
 
-Usage:
-        ns-usbloader -n nsip=<arg1> [hostip=<arg2>] FILE1 ...
-        ns-usbloader --tfn nsip=<arg1> [hostip=<arg2>] FILE1 ...
+1. Add a library folder. Open **Library settings → Refresh metadata** to enable names and covers in the chosen language. Each regional download is bounded to 160 MiB and may be large; future refreshes use ETags.
+2. Open a game, choose Base / Update / DLC, and select individual packages. Use the edit action to identify or regroup uncertain content.
+3. Open **Queue**. For network transfer, enter the console IP and this computer's reachable LAN IP. For USB, refresh devices and explicitly select the installer device. A compatible console-side installer must be running.
+4. Use **RCM boot** to choose and cache an official payload or browse to a local one. Injection is a separate explicit action. Match fusee to the installed Atmosphère version; Nyx SD resources are separate from Hekate's injection payload.
 
-Options:
-        nsip=<ip>               Define NS IP address (mandatory)
-        hostip=<ip[:port]>      Define this host IP address. Will be obtained automatically if not set.
-```
+Network progress measures the union of byte ranges written to the connection. It does **not** establish remote installation success. The HTTP session stays open for retries until cancelled. USB device exit and RCM trigger return codes likewise do not prove installation or boot.
 
-Usage examples:
+Application preferences, metadata, artwork and payloads live under the operating system's application-support directory supplied by `path_provider`, outside the source tree. The CLI requires an explicit external payload cache directory.
 
-```
-Send RCM payload:
-$ java -jar ns-usbloader-4.0.jar -r C:\Users\Superhero\hekate.bin
-Send files to Awoo Installer via Net-install: 
-$ java -jar ns-usbloader-4.0.jar -n nsip=192.168.0.1 ./file.nsz ./file.nsp ~/*.xci
-Send files to Goldleaf v0.8:
-$ java -jar ns-usbloader-4.0.jar -g ver=v0.8 ./*
-Split files:
-$ java -jar ns-usbloader-4.0.jar -s /tmp/ ~/*.nsp
-Merge files:
-$ java -jar ns-usbloader-4.0.jar -m /tmp/ ~/*.nsp
+```sh
+dart run bin/nsusbloader.dart --help
+dart run bin/nsusbloader.dart scan /path/to/library
+dart run bin/nsusbloader.dart split example.nsp example-split.nsp
+dart run bin/nsusbloader.dart merge example-split.nsp merged.nsp
+dart run bin/nsusbloader.dart usb-list
 ```
 
-### Other notes
+## Validation and scope
 
-'Status' = 'Uploaded' that appears in the table does not mean that file has been installed. It means that it has been sent to NS without any issues! That's what this app about. 
-Handling successful/failed installation is a purpose of the other side application: Awoo/Awoo-like or Goldleaf. And they don't provide any feedback interfaces so I can't detect success/failure.
+```sh
+flutter analyze
+flutter test
+# Optional public-network smoke check; never injects or installs:
+dart run tool/live_smoke.dart
+```
 
-#### What is this '-legacy' jar?!
+See [validation evidence](docs/VALIDATION.md) and [protocol boundaries](docs/PROTOCOLS.md). Synthetic protocol tests, desktop builds and physical device validation are separate gates. The CI workflow builds on each host; adding that workflow does not mean those remote builds have run.
 
-**JAR with NO postfixes** recommended for Windows users, Linux users and macOS users who're using Mojave or later versions.
+This port does not implement Goldleaf virtual-drive RPC, legacy Goldleaf versions, the disabled upstream nxdumptool receiver, signature patching, or keys-based decryption. These are explicit parity boundaries, not hidden Java fallbacks. Format acceptance by a console-side installer is determined by that installer.
 
-**JAR with '-legacy' postfix** is for macOS users who're still using OS X releases before (!) Mojave.
-(It also works for Linux and for Windows, but sometimes it doesn't work for Windows and I don't know why).
+## License
 
-We have this situation because of weird behaviour inside usb4java library used in this application for USB interactions. In '-legacy' it's v1.2.0 and in 'normal' it's v1.3.0
-
-### Translators!
-
-If you want to see this app translated to your language, go grab [this file](https://github.com/developersu/ns-usbloader/blob/master/src/main/resources/locale.properties) and translate it.
-
-If you're familiar with pull request, go ahead and create it! No worries if you are not. Just upload somewhere (like pastebin/google drive/whatever else). [Create new issue](https://github.com/developersu/ns-usbloader/issues) and post a link. I'll grab it and add.
-
-To convert files of any locale to readable format (and vise-versa) you can use this site [https://itpro.cz/juniconv/](https://itpro.cz/juniconv/)
-
-## Support this app
-
-If you like this app, just give a star (@ GitHub).
-
-This is non-commercial project.
-
-Thanks!
-
-Appreciate assistance and support of both [Vitaliy](https://github.com/SebastianUA) and [Konstantin](https://github.com/konstantin-kelemen). Without you all this magic would not have happened.
+GPL-3.0-or-later. Original NS-USBloader copyright and the [GPL license](LICENSE) are retained. See [upstream attribution and dependency notices](docs/UPSTREAM.md). No affiliation with upstream maintainers is implied. This project is independent of nsp-dawrin.

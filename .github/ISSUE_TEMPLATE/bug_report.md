@@ -3,7 +3,7 @@ name: Bug report
 about: Report a defect
 title: ''
 labels: ''
-assignees: developersu
+assignees: ''
 
 ---
 
@@ -11,8 +11,11 @@ assignees: developersu
 A clear and concise description of what the bug is.
 
 **Information about environment (mandatory):**
- - OS: [e.g. Windows 7 x64]
- - Java version [run 'java -version']
+ - OS: [e.g. macOS arm64 / Windows x64 / Linux x64]
+ - Flutter/Dart version [run 'flutter --version']
+ - App revision and adapter (Awoo network / USB / RCM)
+ - libusb version and USB driver, when applicable
+ - Evidence type: synthetic test, desktop build, or physical device
 
 **Steps to reproduce**
 Steps to reproduce the behavior:
