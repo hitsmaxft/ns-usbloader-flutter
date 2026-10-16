@@ -72,7 +72,7 @@ The Awoo client uses these routes after a configured server connection:
 | `GET /api/awoo/v1/info` | Server identity, current library revision and `library` capability. |
 | `GET /api/awoo/v1/games?limit=…&cursor=…` | Revision-bound pages of up to 200 game cards. |
 | `GET /api/awoo/v1/games/{id}?revision=rN` | Exact Base, Updates, DLC and unknown-content package records. |
-| `GET /api/awoo/v1/covers/{id}` | Locally cached cover only; no remote-image proxy. |
+| `GET /api/awoo/v1/covers/{id}` | Cached title cover or small original generated PNG; no remote-image proxy. |
 | `HEAD` / `GET /api/awoo/v1/packages/{id}/{contentRevision}/{filename}` | Published available package with full or single range responses. |
 
 JSON responses contain `schemaVersion`, stable `serverId`, and `libraryRevision`.
@@ -83,9 +83,10 @@ requests return 401, missing/unpublished/unavailable packages return 404, and
 invalid ranges return 416.
 
 Only compact Title DB display fields may enter `title_metadata`. The server uses
-an already cached cover from `coverCache` if available, otherwise Awoo uses its
-original fallback artwork. No raw Title DB response, keys, tickets, local paths,
-or source credentials appear in API responses.
+an already cached cover from `coverCache` if available. Otherwise it returns a
+small deterministic original PNG generated from the game group ID, without
+writing it to a mount or using commercial game artwork. No raw Title DB response,
+keys, tickets, local paths, or source credentials appear in API responses.
 
 ## Linux NAS deployment
 

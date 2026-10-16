@@ -9,6 +9,7 @@ import '../core/library.dart';
 import 'library_service.dart';
 import 'library_store.dart';
 import 'network.dart';
+import 'procedural_cover.dart';
 
 class LibraryServerConfig {
   final String bindAddress;
@@ -198,22 +199,12 @@ class LibraryApiServer {
         () {
           final metadata = library.store.titleMetadata(group.id);
           final representative = group.representative;
-          final icon = metadata?.icon;
-          final cached = icon == null || config.coverCache == null
-              ? null
-              : File(
-                  p.join(
-                    config.coverCache!.path,
-                    sha256.convert(utf8.encode(icon)).toString(),
-                  ),
-                );
-          final cover = cached != null && cached.existsSync() ? group.id : null;
           return _Game(
             group,
             [for (final package in group.packages) byKey[package.key]!],
             metadata?.name ?? representative.label,
             metadata?.publisher ?? '',
-            cover,
+            group.id,
           );
         }(),
     ];
@@ -247,9 +238,8 @@ class LibraryApiServer {
             'id': game.group.id,
             'name': game.name,
             'publisher': game.publisher,
-            'coverUrl': game.coverPath == null
-                ? ''
-                : '/api/awoo/v1/covers/${Uri.encodeComponent(game.coverPath!)}',
+            'coverUrl':
+                '/api/awoo/v1/covers/${Uri.encodeComponent(game.coverPath!)}',
             'updateCount': game.group.count(ContentKind.update),
             'dlcCount': game.group.count(ContentKind.dlc),
           },
@@ -295,21 +285,29 @@ class LibraryApiServer {
     HttpResponse response,
     String id,
   ) async {
-    final metadata = library.store.titleMetadata(id);
-    final icon = metadata?.icon;
-    if (icon == null || config.coverCache == null) return _notFound(response);
-    final file = File(
-      p.join(
-        config.coverCache!.path,
-        sha256.convert(utf8.encode(icon)).toString(),
-      ),
-    );
-    if (!await file.exists() || await file.length() > 8 * 1024 * 1024) {
+    if (!_gamesSnapshot().any((game) => game.group.id == id)) {
       return _notFound(response);
     }
+    final metadata = library.store.titleMetadata(id);
+    final icon = metadata?.icon;
+    if (icon != null && config.coverCache != null) {
+      final file = File(
+        p.join(
+          config.coverCache!.path,
+          sha256.convert(utf8.encode(icon)).toString(),
+        ),
+      );
+      if (await file.exists() && await file.length() <= 8 * 1024 * 1024) {
+        response.headers.contentType = ContentType('image', 'png');
+        response.headers.contentLength = await file.length();
+        if (request.method == 'GET') await response.addStream(file.openRead());
+        return;
+      }
+    }
+    final generated = ProceduralCover.png(id);
     response.headers.contentType = ContentType('image', 'png');
-    response.headers.contentLength = await file.length();
-    if (request.method == 'GET') await response.addStream(file.openRead());
+    response.headers.contentLength = generated.length;
+    if (request.method == 'GET') response.add(generated);
   }
 
   Future<void> _package(
