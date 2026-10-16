@@ -39,9 +39,11 @@ class ProceduralCover {
             blue = _brighten(blue, 13);
           }
         }
-        raw[offset++] = red;
-        raw[offset++] = green;
-        raw[offset++] = blue;
+        // Eight levels per channel keep the abstract artwork legible while
+        // making the PNG economical for a console-side cache.
+        raw[offset++] = _quantize(red);
+        raw[offset++] = _quantize(green);
+        raw[offset++] = _quantize(blue);
         raw[offset++] = 255;
       }
     }
@@ -59,6 +61,7 @@ class ProceduralCover {
       (first * (maximum - value) + second * value) ~/ maximum;
   static int _brighten(int value, int amount) =>
       value + amount > 255 ? 255 : value + amount;
+  static int _quantize(int value) => value & 0xe0;
 
   static Uint8List _chunk(String type, List<int> data) {
     final name = ascii.encode(type);

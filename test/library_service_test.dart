@@ -171,7 +171,7 @@ void main() {
       expect(cover.$1.statusCode, HttpStatus.ok);
       expect(cover.$1.headers.contentType?.mimeType, 'image/png');
       expect(cover.$2.take(8), [137, 80, 78, 71, 13, 10, 26, 10]);
-      expect(cover.$2.length, lessThan(64 * 1024));
+      expect(cover.$2.length, lessThan(16 * 1024));
       final revision = pageJson['libraryRevision'] as String;
       final detail = await get(
         '/api/awoo/v1/games/$gameId?revision=$revision',
