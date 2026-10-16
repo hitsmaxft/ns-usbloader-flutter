@@ -5,6 +5,131 @@ import 'package:path/path.dart' as p;
 import 'package:ns_usbloader/services/library_api.dart';
 import 'package:ns_usbloader/services/library_service.dart';
 
+class _AwooContract {
+  final Map<String, dynamic> document;
+  _AwooContract(this.document);
+
+  static Future<_AwooContract> load() async {
+    final decoded = jsonDecode(
+      await File('protocol/awoo-library-v1.openapi.json').readAsString(),
+    );
+    if (decoded is! Map<String, dynamic>) {
+      throw StateError('Awoo contract must be a JSON object');
+    }
+    return _AwooContract(decoded);
+  }
+
+  void validate(Object? value, String schemaName) {
+    final schemas = document['components']!['schemas'] as Map<String, dynamic>;
+    _validate(value, schemas[schemaName] as Map<String, dynamic>, r'$');
+  }
+
+  Map<String, dynamic> _resolve(Map<String, dynamic> schema) {
+    final reference = schema[r'$ref'];
+    if (reference is! String) return schema;
+    const prefix = '#/components/schemas/';
+    if (!reference.startsWith(prefix)) {
+      throw StateError('Unsupported contract reference: $reference');
+    }
+    final schemas = document['components']!['schemas'] as Map<String, dynamic>;
+    final resolved = Map<String, dynamic>.from(
+      schemas[reference.substring(prefix.length)] as Map<String, dynamic>,
+    );
+    for (final entry in schema.entries) {
+      if (entry.key != r'$ref') resolved[entry.key] = entry.value;
+    }
+    return resolved;
+  }
+
+  void _validate(Object? value, Map<String, dynamic> raw, String path) {
+    final schema = _resolve(raw);
+    final allOf = schema['allOf'];
+    if (allOf is List) {
+      for (final item in allOf) {
+        _validate(value, item as Map<String, dynamic>, path);
+      }
+    }
+    if (schema.containsKey('const') && value != schema['const']) {
+      throw StateError('$path must equal ${schema['const']}');
+    }
+    final allowed = schema['enum'];
+    if (allowed is List && !allowed.contains(value)) {
+      throw StateError('$path is not an allowed value');
+    }
+    switch (schema['type']) {
+      case 'object':
+        if (value is! Map<String, dynamic>) {
+          throw StateError('$path must be an object');
+        }
+        for (final name in (schema['required'] as List? ?? const <Object?>[])) {
+          if (!value.containsKey(name)) {
+            throw StateError('$path is missing $name');
+          }
+        }
+        final properties = schema['properties'] as Map<String, dynamic>?;
+        if (properties != null) {
+          for (final entry in properties.entries) {
+            if (value.containsKey(entry.key)) {
+              _validate(
+                value[entry.key],
+                entry.value as Map<String, dynamic>,
+                '$path.${entry.key}',
+              );
+            }
+          }
+        }
+      case 'array':
+        if (value is! List) throw StateError('$path must be an array');
+        _bounded(value.length, schema, path);
+        final items = schema['items'];
+        if (items is Map<String, dynamic>) {
+          for (var index = 0; index < value.length; index++) {
+            _validate(value[index], items, '$path[$index]');
+          }
+        }
+        final contains = schema['contains'];
+        if (contains is Map<String, dynamic> &&
+            !value.any((item) => _accepts(item, contains))) {
+          throw StateError('$path has no required member');
+        }
+      case 'string':
+        if (value is! String) throw StateError('$path must be a string');
+        _bounded(value.length, schema, path);
+        final pattern = schema['pattern'];
+        if (pattern is String && !RegExp(pattern).hasMatch(value)) {
+          throw StateError('$path does not match its pattern');
+        }
+      case 'integer':
+        if (value is! int) throw StateError('$path must be an integer');
+        _bounded(value, schema, path);
+      case 'boolean':
+        if (value is! bool) throw StateError('$path must be a boolean');
+    }
+  }
+
+  bool _accepts(Object? value, Map<String, dynamic> schema) {
+    try {
+      _validate(value, schema, r'$contains');
+      return true;
+    } on StateError {
+      return false;
+    }
+  }
+
+  void _bounded(int value, Map<String, dynamic> schema, String path) {
+    final minimum =
+        schema['minimum'] ?? schema['minLength'] ?? schema['minItems'];
+    final maximum =
+        schema['maximum'] ?? schema['maxLength'] ?? schema['maxItems'];
+    if (minimum is num && value < minimum) {
+      throw StateError('$path is too small');
+    }
+    if (maximum is num && value > maximum) {
+      throw StateError('$path is too large');
+    }
+  }
+}
+
 void main() {
   late Directory temp;
   late Directory root;
@@ -134,6 +259,7 @@ void main() {
     );
     await server.start();
     final client = HttpClient();
+    final contract = await _AwooContract.load();
     Future<(HttpClientResponse, List<int>)> get(
       String path, {
       String? token,
@@ -161,9 +287,23 @@ void main() {
       expect((await get('/healthz')).$1.statusCode, HttpStatus.ok);
       final info = await get('/api/awoo/v1/info', token: 'test-token');
       final infoJson = jsonDecode(utf8.decode(info.$2)) as Map<String, dynamic>;
+      expect(contract.document['openapi'], '3.1.1');
+      final paths = contract.document['paths'] as Map<String, dynamic>;
+      expect(
+        paths.keys,
+        containsAll([
+          '/api/awoo/v1/info',
+          '/api/awoo/v1/games',
+          '/api/awoo/v1/games/{gameId}',
+          '/api/awoo/v1/covers/{gameId}',
+          '/api/awoo/v1/packages/{packageId}/{contentRevision}/{filename}',
+        ]),
+      );
+      contract.validate(infoJson, 'InfoResponse');
       expect(infoJson['name'], 'Synthetic library');
       final page = await get('/api/awoo/v1/games?limit=1', token: 'test-token');
       final pageJson = jsonDecode(utf8.decode(page.$2)) as Map<String, dynamic>;
+      contract.validate(pageJson, 'GamePageResponse');
       expect((pageJson['games'] as List), hasLength(1));
       final game = (pageJson['games'] as List).single as Map<String, dynamic>;
       final gameId = game['id'] as String;
@@ -179,23 +319,35 @@ void main() {
       );
       final detailJson =
           jsonDecode(utf8.decode(detail.$2)) as Map<String, dynamic>;
+      contract.validate(detailJson, 'GameDetailResponse');
       final packages = detailJson['packages'] as List;
       expect(packages, hasLength(3));
       final url = packages.first['downloadUrl'] as String;
       final range = await get(url, token: 'test-token', range: 'bytes=1-2');
       expect(range.$1.statusCode, HttpStatus.partialContent);
+      expect(range.$1.headers.value(HttpHeaders.acceptRangesHeader), 'bytes');
+      expect(
+        range.$1.headers.value(HttpHeaders.contentRangeHeader),
+        'bytes 1-2/3',
+      );
       expect(range.$2, [2, 3]);
       final stale = await get(
         '/api/awoo/v1/games/$gameId?revision=r0',
         token: 'test-token',
       );
       expect(stale.$1.statusCode, HttpStatus.conflict);
-      expect(
-        (await get(
-          '/api/awoo/v1/games?limit=0',
-          token: 'test-token',
-        )).$1.statusCode,
-        HttpStatus.badRequest,
+      contract.validate(
+        jsonDecode(utf8.decode(stale.$2)) as Map<String, dynamic>,
+        'ErrorResponse',
+      );
+      final invalidLimit = await get(
+        '/api/awoo/v1/games?limit=0',
+        token: 'test-token',
+      );
+      expect(invalidLimit.$1.statusCode, HttpStatus.badRequest);
+      contract.validate(
+        jsonDecode(utf8.decode(invalidLimit.$2)) as Map<String, dynamic>,
+        'ErrorResponse',
       );
       await File(
         p.join(root.path, 'Orbit [0100000000002000][v0].nsp'),

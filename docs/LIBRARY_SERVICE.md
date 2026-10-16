@@ -65,6 +65,13 @@ instances cannot silently become concurrent writers.
 
 ## API v1
 
+The Awoo client owns the normative OpenAPI declaration. This repository vendors
+the exact contract snapshot at
+[`protocol/awoo-library-v1.openapi.json`](../protocol/awoo-library-v1.openapi.json).
+Update it only by copying the corresponding file from the Awoo Gallery branch;
+the library-service test validates live JSON responses against its component
+schemas. The host does not define private fields or routes outside that contract.
+
 The Awoo client uses these routes after a configured server connection:
 
 | Route | Behavior |

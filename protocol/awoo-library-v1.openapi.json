@@ -1,0 +1,180 @@
+{
+  "$schema": "https://spec.openapis.org/oas/3.1/dialect/base",
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Awoo Library Gallery API",
+    "version": "1.0.0",
+    "description": "Versioned HTTP contract for the Awoo Library extension. It is separate from Awoo's existing LAN URL-list and USB protocols."
+  },
+  "security": [
+    {"optionalBearer": []},
+    {}
+  ],
+  "paths": {
+    "/api/awoo/v1/info": {
+      "get": {
+        "summary": "Read the current server identity and capability",
+        "responses": {
+          "200": {"description": "Library information", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/InfoResponse"}}}},
+          "401": {"$ref": "#/components/responses/Unauthorized"}
+        }
+      }
+    },
+    "/api/awoo/v1/games": {
+      "get": {
+        "summary": "List game cards from one committed library revision",
+        "parameters": [
+          {"name": "limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 200, "default": 100}},
+          {"name": "cursor", "in": "query", "schema": {"$ref": "#/components/schemas/Cursor"}}
+        ],
+        "responses": {
+          "200": {"description": "Game card page", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/GamePageResponse"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "409": {"$ref": "#/components/responses/StaleRevision"}
+        }
+      }
+    },
+    "/api/awoo/v1/games/{gameId}": {
+      "get": {
+        "summary": "List selectable packages for one game card",
+        "parameters": [
+          {"$ref": "#/components/parameters/GameId"},
+          {"name": "revision", "in": "query", "required": true, "schema": {"$ref": "#/components/schemas/Revision"}}
+        ],
+        "responses": {
+          "200": {"description": "Game detail", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/GameDetailResponse"}}}},
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "404": {"description": "Unknown game"},
+          "409": {"$ref": "#/components/responses/StaleRevision"}
+        }
+      }
+    },
+    "/api/awoo/v1/covers/{gameId}": {
+      "get": {
+        "summary": "Read a bounded PNG cover for a published game",
+        "parameters": [{"$ref": "#/components/parameters/GameId"}],
+        "responses": {
+          "200": {"description": "PNG image, at most 524288 bytes and 512 by 512 declared pixels", "content": {"image/png": {"schema": {"type": "string", "contentEncoding": "base64", "maxLength": 699052}}}},
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "404": {"description": "Unknown game"}
+        }
+      }
+    },
+    "/api/awoo/v1/packages/{packageId}/{contentRevision}/{filename}": {
+      "get": {
+        "summary": "Read one published package, optionally as a single byte range",
+        "parameters": [
+          {"$ref": "#/components/parameters/PackageId"},
+          {"$ref": "#/components/parameters/ContentRevision"},
+          {"$ref": "#/components/parameters/Filename"},
+          {"name": "Range", "in": "header", "schema": {"type": "string", "pattern": "^bytes=(?:[0-9]+-[0-9]*|-[0-9]+)$"}}
+        ],
+        "responses": {
+          "200": {"$ref": "#/components/responses/Package"},
+          "206": {"$ref": "#/components/responses/PartialPackage"},
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "404": {"description": "Unknown or unavailable package"},
+          "409": {"$ref": "#/components/responses/StaleRevision"},
+          "416": {"description": "Invalid range", "headers": {"Content-Range": {"schema": {"type": "string", "pattern": "^bytes \\*/[0-9]+$"}}}}
+        }
+      },
+      "head": {
+        "summary": "Read package length and range support without a body",
+        "parameters": [
+          {"$ref": "#/components/parameters/PackageId"},
+          {"$ref": "#/components/parameters/ContentRevision"},
+          {"$ref": "#/components/parameters/Filename"}
+        ],
+        "responses": {
+          "200": {"$ref": "#/components/responses/Package"},
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "404": {"description": "Unknown or unavailable package"},
+          "409": {"$ref": "#/components/responses/StaleRevision"}
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "optionalBearer": {"type": "http", "scheme": "bearer", "bearerFormat": "opaque ASCII token"}
+    },
+    "parameters": {
+      "GameId": {"name": "gameId", "in": "path", "required": true, "schema": {"$ref": "#/components/schemas/OpaqueId"}},
+      "PackageId": {"name": "packageId", "in": "path", "required": true, "schema": {"$ref": "#/components/schemas/OpaqueId"}},
+      "ContentRevision": {"name": "contentRevision", "in": "path", "required": true, "schema": {"$ref": "#/components/schemas/ContentRevision"}},
+      "Filename": {"name": "filename", "in": "path", "required": true, "schema": {"$ref": "#/components/schemas/Filename"}}
+    },
+    "responses": {
+      "Error": {"description": "Request error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorResponse"}}}},
+      "Unauthorized": {"description": "Missing or rejected bearer token", "headers": {"WWW-Authenticate": {"schema": {"const": "Bearer"}}}},
+      "StaleRevision": {"description": "Catalog or package content changed", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorResponse"}}}},
+      "Package": {"description": "Whole package", "headers": {"Accept-Ranges": {"schema": {"const": "bytes"}}, "ETag": {"schema": {"type": "string"}}}, "content": {"application/octet-stream": {"schema": {"type": "string", "contentEncoding": "base64"}}}},
+      "PartialPackage": {"description": "Single byte range", "headers": {"Accept-Ranges": {"schema": {"const": "bytes"}}, "Content-Range": {"schema": {"type": "string", "pattern": "^bytes [0-9]+-[0-9]+/[0-9]+$"}}, "ETag": {"schema": {"type": "string"}}}, "content": {"application/octet-stream": {"schema": {"type": "string", "contentEncoding": "base64"}}}}
+    },
+    "schemas": {
+      "ProtocolVersion": {"type": "integer", "const": 1},
+      "VisibleText": {"type": "string", "maxLength": 256, "pattern": "^[^\\u0000-\\u001F\\u007F]*$"},
+      "NonEmptyText": {"$ref": "#/components/schemas/VisibleText", "minLength": 1},
+      "OpaqueId": {"$ref": "#/components/schemas/NonEmptyText"},
+      "Revision": {"$ref": "#/components/schemas/NonEmptyText"},
+      "ContentRevision": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+      "Filename": {"$ref": "#/components/schemas/NonEmptyText"},
+      "Cursor": {"type": "string", "maxLength": 512, "pattern": "^[^\\u0000-\\u001F\\u007F]*$"},
+      "Envelope": {
+        "type": "object",
+        "required": ["schemaVersion", "serverId", "libraryRevision"],
+        "properties": {
+          "schemaVersion": {"$ref": "#/components/schemas/ProtocolVersion"},
+          "serverId": {"$ref": "#/components/schemas/OpaqueId"},
+          "libraryRevision": {"$ref": "#/components/schemas/Revision"}
+        }
+      },
+      "InfoResponse": {
+        "allOf": [
+          {"$ref": "#/components/schemas/Envelope"},
+          {"type": "object", "required": ["name", "capabilities"], "properties": {"name": {"$ref": "#/components/schemas/NonEmptyText"}, "capabilities": {"type": "array", "minItems": 1, "maxItems": 32, "items": {"$ref": "#/components/schemas/NonEmptyText"}, "contains": {"const": "library"}}}}
+        ]
+      },
+      "GameCard": {
+        "type": "object",
+        "required": ["id", "name", "publisher", "coverUrl", "updateCount", "dlcCount"],
+        "properties": {
+          "id": {"$ref": "#/components/schemas/OpaqueId"},
+          "name": {"$ref": "#/components/schemas/NonEmptyText"},
+          "publisher": {"$ref": "#/components/schemas/VisibleText"},
+          "coverUrl": {"type": "string", "maxLength": 2048, "pattern": "^/api/awoo/v1/covers/"},
+          "updateCount": {"type": "integer", "minimum": 0, "maximum": 100000},
+          "dlcCount": {"type": "integer", "minimum": 0, "maximum": 100000}
+        }
+      },
+      "GamePageResponse": {
+        "allOf": [
+          {"$ref": "#/components/schemas/Envelope"},
+          {"type": "object", "required": ["nextCursor", "games"], "properties": {"nextCursor": {"$ref": "#/components/schemas/Cursor"}, "games": {"type": "array", "maxItems": 200, "items": {"$ref": "#/components/schemas/GameCard"}}}}
+        ]
+      },
+      "Package": {
+        "type": "object",
+        "required": ["id", "filename", "kind", "format", "version", "size", "available", "downloadUrl"],
+        "properties": {
+          "id": {"$ref": "#/components/schemas/OpaqueId"},
+          "filename": {"$ref": "#/components/schemas/Filename"},
+          "kind": {"type": "string", "enum": ["base", "update", "dlc", "unknown"]},
+          "format": {"type": "string", "enum": ["nsp", "nsz", "xci", "xcz"]},
+          "version": {"$ref": "#/components/schemas/VisibleText"},
+          "size": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807},
+          "available": {"type": "boolean"},
+          "downloadUrl": {"type": "string", "maxLength": 2048, "pattern": "^/api/awoo/v1/packages/"}
+        }
+      },
+      "GameDetailResponse": {
+        "allOf": [
+          {"$ref": "#/components/schemas/Envelope"},
+          {"type": "object", "required": ["gameId", "nextCursor", "packages"], "properties": {"gameId": {"$ref": "#/components/schemas/OpaqueId"}, "nextCursor": {"const": ""}, "packages": {"type": "array", "maxItems": 200, "items": {"$ref": "#/components/schemas/Package"}}}}
+        ]
+      },
+      "ErrorResponse": {"type": "object", "required": ["error"], "properties": {"error": {"type": "string", "enum": ["invalid_limit", "stale_revision"]}}}
+    }
+  }
+}
