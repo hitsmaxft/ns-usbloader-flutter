@@ -12,6 +12,8 @@ dependencies:
   crypto: ^3.0.6
   file_selector: ^1.0.3
   path_provider: ^2.1.5
+  sqlite3: ^2.9.4
+  sqlite3_flutter_libs: ^0.5.30
 dev_dependencies:
   flutter_test:
     sdk: flutter

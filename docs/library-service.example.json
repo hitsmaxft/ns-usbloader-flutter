@@ -1,0 +1,16 @@
+{
+  "dataDirectory": "/var/lib/ns-usbloader",
+  "bindAddress": "192.168.50.10",
+  "port": 8080,
+  "name": "Home library",
+  "tokenFile": "/etc/ns-usbloader/library-token",
+  "coverCache": "/var/lib/ns-usbloader/catalog/covers",
+  "scanIntervalSeconds": 300,
+  "sources": [
+    {
+      "path": "/mnt/games/switch",
+      "kind": "directory",
+      "published": true
+    }
+  ]
+}

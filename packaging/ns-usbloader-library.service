@@ -1,0 +1,21 @@
+[Unit]
+Description=NS-USBloader local library service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nsusbloader
+Group=nsusbloader
+ExecStart=/usr/local/bin/nsusbloader library-serve /etc/ns-usbloader/library.json
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/ns-usbloader
+ReadOnlyPaths=/mnt/games/switch
+
+[Install]
+WantedBy=multi-user.target

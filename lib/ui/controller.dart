@@ -8,6 +8,7 @@ import '../core/library.dart';
 import '../services/catalog.dart';
 import '../services/downloads.dart';
 import '../services/network.dart';
+import '../services/library_service.dart';
 import '../usb/device.dart';
 import '../usb/worker.dart';
 
@@ -33,7 +34,9 @@ class AppController extends ChangeNotifier {
   late final payloads = PayloadProvider(
     Directory(p.join(data.path, 'payloads')),
   );
-  final scanner = LibraryScanner();
+  LibraryService? _library;
+  LibraryService get library =>
+      _library ?? (throw StateError('Library has not initialized'));
   Catalog catalog = Catalog();
   List<Package> packages = [];
   final selected = <String>{};
@@ -52,10 +55,16 @@ class AppController extends ChangeNotifier {
   Future<void> initialize() async {
     try {
       await preferences.load();
+      _library = await LibraryService.open(data);
+      await library.migrateLegacy(
+        folders: preferences.folders,
+        overrides: preferences.overrides,
+      );
       catalog = await catalogStore.load(
         preferences.region,
         fallback: preferences.englishFallback ? 'US.en' : preferences.region,
       );
+      library.updateTitleMetadata(catalog);
       await scan();
     } catch (e) {
       error = e.toString();
@@ -69,13 +78,8 @@ class AppController extends ChangeNotifier {
     scanCancel = Cancellation();
     notifyListeners();
     try {
-      final result = await scanner.scan(
-        preferences.folders,
-        cancel: scanCancel,
-        overrides: preferences.overrides,
-      );
-      packages = result.packages;
-      scanIssues = result.issues;
+      scanIssues = await library.scan(cancel: scanCancel);
+      packages = library.packages.map((item) => item.package).toList();
       selected.removeWhere((key) => !packages.any((p) => p.key == key));
     } on Cancelled {
       /* Preserve the last completed snapshot. */
@@ -90,13 +94,41 @@ class AppController extends ChangeNotifier {
   Future<void> addFolder(String path) async {
     if (!preferences.folders.contains(path)) preferences.folders.add(path);
     await preferences.save();
+    await library.addSource(path);
+    await scan();
+  }
+
+  Future<void> addFiles(Iterable<String> paths) async {
+    for (final path in paths) {
+      await library.addSource(path);
+    }
     await scan();
   }
 
   Future<void> removeFolder(String path) async {
     preferences.folders.remove(path);
     await preferences.save();
+    final source = library.sources
+        .where((source) => source.path == p.normalize(p.absolute(path)))
+        .firstOrNull;
+    if (source != null) library.removeSource(source.id);
     await scan();
+  }
+
+  Future<void> removeSource(String id) async {
+    final source = library.sources
+        .where((source) => source.id == id)
+        .firstOrNull;
+    if (source == null) return;
+    preferences.folders.remove(source.path);
+    await preferences.save();
+    library.removeSource(id);
+    await scan();
+  }
+
+  void setSourcePublished(String id, bool published) {
+    library.updateSource(id, published: published);
+    notifyListeners();
   }
 
   void toggle(Package item, bool value) {
@@ -121,6 +153,7 @@ class AppController extends ChangeNotifier {
         region,
         fallback: fallback ? 'US.en' : region,
       );
+      library.updateTitleMetadata(catalog);
     } on Cancelled {
       /* Keep the previous catalog. */
     } catch (e) {
@@ -150,6 +183,7 @@ class AppController extends ChangeNotifier {
       preferences.overrides[package.source.path] = value;
     }
     await preferences.save();
+    library.setOverride(package, value);
     await scan();
   }
 
@@ -239,6 +273,8 @@ class AppController extends ChangeNotifier {
     for (final job in jobs) {
       if (job.active) job.cancel.cancel();
     }
+    final library = _library;
+    if (library != null) unawaited(library.close());
     super.dispose();
   }
 }

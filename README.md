@@ -14,6 +14,7 @@ An independent, Java-free desktop port of [NS-USBloader](https://github.com/deve
 - Official Hekate and Atmosphère fusee release selection, bounded downloads, atomic cache publication and verification against published SHA-256 digests when available. Downloads never trigger injection. Cached payloads remain usable independently of release discovery.
 - RCM payload framing and injection transport for vulnerable, unpatched hardware. USB operations run in a worker isolate. The selected device is rechecked before opening, and Linux/Windows trigger helpers contain no JNI.
 - Cancellable split/merge with staging output, input preservation and existing-output refusal. A CLI shares the same domain APIs as the GUI.
+- Durable SQLite sources and package snapshots, plus a versioned, read-only Awoo gallery service through the same headless Dart core on Linux; see [library service operation](docs/LIBRARY_SERVICE.md).
 
 ![Per-game content selection](docs/screenshots/content.png)
 
@@ -59,12 +60,17 @@ dart run bin/nsusbloader.dart --help
 dart run bin/nsusbloader.dart scan /path/to/library
 dart run bin/nsusbloader.dart split example.nsp example-split.nsp
 dart run bin/nsusbloader.dart merge example-split.nsp merged.nsp
+dart run bin/nsusbloader.dart library-add /var/lib/nsusbloader /mnt/games/switch
+dart run bin/nsusbloader.dart library-scan /var/lib/nsusbloader
+dart run bin/nsusbloader.dart library-serve /etc/nsusbloader/library.json
 dart run bin/nsusbloader.dart usb-list
 # Standalone CLI bundle (keep its bin/ and lib/ directories together):
 dart build cli --output build/cli --target bin/nsusbloader.dart
 ```
 
 ## Validation and scope
+
+The full gallery plan is specified in [Persistent library and Awoo gallery requirements](docs/LIBRARY_GALLERY_REQUIREMENTS.md). This checkout implements the SQLite index, versioned library API and headless service entry point. Linux release packaging and physical Awoo gallery validation remain separate work.
 
 ```sh
 flutter analyze

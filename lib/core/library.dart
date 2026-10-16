@@ -110,6 +110,7 @@ class LibraryScanner {
     List<String> roots, {
     Cancellation? cancel,
     Map<String, dynamic> overrides = const {},
+    Future<Package?> Function(FileSource source, Map? override)? cached,
   }) async {
     final packages = <String, Package>{};
     final issues = <String>[];
@@ -125,6 +126,13 @@ class LibraryScanner {
           final source = await FileSource.open(path);
           final previous = _cache[canonical];
           final override = overrides[canonical] as Map?;
+          final persisted = await cached?.call(source, override);
+          if (persisted != null) {
+            packages[canonical] = persisted;
+            _cache[canonical] = persisted;
+            _overrideSignatures[canonical] = jsonEncode(override);
+            return;
+          }
           if (previous != null &&
               _overrideSignatures[canonical] == jsonEncode(override) &&
               previous.source.modified.join(',') == source.modified.join(',') &&

@@ -130,6 +130,18 @@ class _LoaderHomeState extends State<LoaderHome> {
     if (path != null) await c.addFolder(path);
   }
 
+  Future<void> addFiles() async {
+    final files = await openFiles(
+      acceptedTypeGroups: const [
+        XTypeGroup(
+          label: 'Nintendo packages',
+          extensions: ['nsp', 'xci', 'nsz', 'xcz'],
+        ),
+      ],
+    );
+    if (files.isNotEmpty) await c.addFiles(files.map((file) => file.path));
+  }
+
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: c,
@@ -339,6 +351,11 @@ class _LoaderHomeState extends State<LoaderHome> {
             icon: const Icon(Icons.add),
             label: const Text('Add folder'),
           ),
+          OutlinedButton.icon(
+            onPressed: () => action(addFiles),
+            icon: const Icon(Icons.note_add_outlined),
+            label: const Text('Add files'),
+          ),
         ]),
         Text(
           '${c.groups.length} games   /   ${c.packages.length} packages',
@@ -403,7 +420,7 @@ class _LoaderHomeState extends State<LoaderHome> {
                       ? 'A home for your collection'
                       : 'No matching games',
                   c.packages.isEmpty
-                      ? 'Add a folder of NSP, XCI, NSZ or XCZ files.'
+                      ? 'Add a folder or package files.'
                       : 'Try a different name or filter.',
                 )
               : LayoutBuilder(
@@ -914,14 +931,28 @@ class _LoaderHomeState extends State<LoaderHome> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (final folder in c.preferences.folders)
+                    for (final source in c.library.sources)
                       ListTile(
                         contentPadding: EdgeInsets.zero,
-                        title: Text(folder),
-                        trailing: IconButton(
-                          tooltip: 'Remove from library',
-                          onPressed: () => action(() => c.removeFolder(folder)),
-                          icon: const Icon(Icons.remove_circle_outline),
+                        title: Text(source.path),
+                        subtitle: Text(
+                          '${source.kind.name} · ${source.published ? 'Published' : 'Private'}${source.available ? '' : ' · unavailable'}',
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Switch(
+                              value: source.published,
+                              onChanged: (value) =>
+                                  c.setSourcePublished(source.id, value),
+                            ),
+                            IconButton(
+                              tooltip: 'Remove from library',
+                              onPressed: () =>
+                                  action(() => c.removeSource(source.id)),
+                              icon: const Icon(Icons.remove_circle_outline),
+                            ),
+                          ],
                         ),
                       ),
                     const SizedBox(height: 16),

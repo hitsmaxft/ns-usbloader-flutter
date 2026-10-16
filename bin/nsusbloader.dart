@@ -6,6 +6,8 @@ import 'package:ns_usbloader/core/files.dart';
 import 'package:ns_usbloader/core/library.dart';
 import 'package:ns_usbloader/services/downloads.dart';
 import 'package:ns_usbloader/services/network.dart';
+import 'package:ns_usbloader/services/library_daemon.dart';
+import 'package:ns_usbloader/services/library_service.dart';
 import 'package:ns_usbloader/usb/worker.dart';
 
 const usage = '''NS-USBloader Flutter CLI (no Java)
@@ -18,6 +20,9 @@ const usage = '''NS-USBloader Flutter CLI (no Java)
   payload-list <hekate|fusee> <external-cache-directory>
   payload-download <hekate|fusee> <tag> <external-cache-directory>
   rcm-inject <device-key> <payload.bin>
+  library-add <data-directory> <directory-or-package>...
+  library-scan <data-directory>
+  library-serve <absolute-config.json>
 Network serving ends with Ctrl-C. Byte delivery is not installation confirmation.
 ''';
 Future<void> main(List<String> args) async {
@@ -150,6 +155,43 @@ Future<void> main(List<String> args) async {
               '${r.tag}\t${r.name}\t${r.digest ?? "No published digest"}',
             );
           }
+        }
+      case 'library-add':
+        need(3);
+        final library = await LibraryService.open(Directory(args[1]));
+        try {
+          for (final path in args.sublist(2)) {
+            final source = await library.addSource(path);
+            stdout.writeln('${source.id}\t${source.kind.name}\t${source.path}');
+          }
+        } finally {
+          await library.close();
+        }
+      case 'library-scan':
+        need(2);
+        final library = await LibraryService.open(Directory(args[1]));
+        try {
+          final issues = await library.scan(cancel: cancel);
+          stdout.writeln(
+            'Committed ${library.revision} with ${library.packages.length} packages',
+          );
+          for (final issue in issues) {
+            stderr.writeln(issue);
+          }
+        } finally {
+          await library.close();
+        }
+      case 'library-serve':
+        need(2);
+        final config = await LibraryDaemonConfig.load(File(args[1]));
+        final daemon = await LibraryDaemon.start(config, log: stderr.writeln);
+        try {
+          final stopped = Completer<void>();
+          final remove = cancel.listen(stopped.complete);
+          await stopped.future;
+          remove();
+        } finally {
+          await daemon.close();
         }
       default:
         throw ArgumentError(usage);
