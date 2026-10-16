@@ -57,16 +57,29 @@ void main() {
       );
       final stableServerId = library.serverId;
       final stableRevision = library.revision;
+      expect(await library.scan(), isEmpty);
+      expect(
+        library.revision,
+        stableRevision,
+        reason: 'An unchanged indexed source does not enumerate or revise',
+      );
+      await File(
+        p.join(root.path, 'Orbit bonus [0100000000003002].nsp'),
+      ).writeAsBytes([11, 12]);
+      expect(await library.scan(), isEmpty);
+      expect(library.packages, hasLength(5));
+      expect(library.revision, isNot(stableRevision));
+      final updatedRevision = library.revision;
       await library.close();
       library = await LibraryService.open(data);
       expect(library.serverId, stableServerId);
-      expect(library.revision, stableRevision);
+      expect(library.revision, updatedRevision);
       expect(library.sources.single.path, root.path);
-      expect(library.packages, hasLength(4));
+      expect(library.packages, hasLength(5));
       await root.rename(p.join(temp.path, 'games-offline'));
       final issues = await library.scan();
       expect(issues.single, contains('source unavailable'));
-      expect(library.packages, hasLength(4));
+      expect(library.packages, hasLength(5));
       expect(library.packages.every((item) => !item.available), isTrue);
     },
   );

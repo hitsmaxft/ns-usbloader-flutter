@@ -72,7 +72,10 @@ class LibraryDaemonConfig {
     if (port is! int || port < 1 || port > 65535) {
       throw const FormatException('port must be 1–65535');
     }
-    final interval = raw['scanIntervalSeconds'] ?? 300;
+    // Directory notifications drive prompt discovery when a filesystem
+    // supports them. This is the conservative fallback for NAS mounts where
+    // notifications can be unavailable or can miss remote changes.
+    final interval = raw['scanIntervalSeconds'] ?? 6 * 60 * 60;
     if (interval is! int || interval < 15 || interval > 24 * 60 * 60) {
       throw const FormatException('scanIntervalSeconds must be 15–86400');
     }
@@ -144,7 +147,10 @@ class LibraryDaemon {
   final RandomAccessFile _lock;
   final Cancellation cancellation = Cancellation();
   Timer? _timer;
+  Timer? _watchDebounce;
+  final _watches = <StreamSubscription<FileSystemEvent>>[];
   bool _scanRunning = false;
+  bool _scanQueued = false, _queuedForce = false;
   LibraryDaemon._(this.config, this.library, this.server, this._lock);
 
   static Future<LibraryDaemon> start(
@@ -199,8 +205,9 @@ class LibraryDaemon {
       await daemon.server.start(cancellation: daemon.cancellation);
       daemon._timer = Timer.periodic(
         config.scanInterval,
-        (_) => daemon.scan(log: log),
+        (_) => daemon.scan(log: log, force: true),
       );
+      daemon._watchSources(log: log);
       unawaited(daemon.scan(log: log));
       log?.call(
         'Library service listening on ${config.bindAddress}:${daemon.server.port}',
@@ -212,11 +219,19 @@ class LibraryDaemon {
     }
   }
 
-  Future<void> scan({void Function(String message)? log}) async {
-    if (_scanRunning || cancellation.cancelled) return;
+  Future<void> scan({
+    void Function(String message)? log,
+    bool force = false,
+  }) async {
+    if (cancellation.cancelled) return;
+    if (_scanRunning) {
+      _scanQueued = true;
+      _queuedForce = _queuedForce || force;
+      return;
+    }
     _scanRunning = true;
     try {
-      final issues = await library.scan(cancel: cancellation);
+      final issues = await library.scan(cancel: cancellation, force: force);
       log?.call(
         issues.isEmpty
             ? 'Library scan committed ${library.revision}'
@@ -228,12 +243,51 @@ class LibraryDaemon {
       log?.call('Library scan failed: $error');
     } finally {
       _scanRunning = false;
+      if (_scanQueued && !cancellation.cancelled) {
+        final queuedForce = _queuedForce;
+        _scanQueued = false;
+        _queuedForce = false;
+        unawaited(scan(log: log, force: queuedForce));
+      }
+    }
+  }
+
+  void _watchSources({void Function(String message)? log}) {
+    for (final source in config.sources) {
+      if (source.kind != LibrarySourceKind.directory) continue;
+      try {
+        _watches.add(
+          Directory(source.path)
+              .watch(recursive: true)
+              .listen(
+                (_) {
+                  if (cancellation.cancelled) return;
+                  _watchDebounce?.cancel();
+                  _watchDebounce = Timer(
+                    const Duration(seconds: 2),
+                    () => unawaited(scan(log: log, force: true)),
+                  );
+                },
+                onError: (Object error) {
+                  log?.call(
+                    'Library watch unavailable for ${source.path}: $error; periodic scan remains enabled',
+                  );
+                },
+              ),
+        );
+      } catch (error) {
+        log?.call(
+          'Library watch unavailable for ${source.path}: $error; periodic scan remains enabled',
+        );
+      }
     }
   }
 
   Future<void> close() async {
     cancellation.cancel();
     _timer?.cancel();
+    _watchDebounce?.cancel();
+    await Future.wait([for (final watch in _watches) watch.cancel()]);
     await server.close();
     await library.close();
     await _lock.close();

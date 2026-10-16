@@ -19,6 +19,8 @@ class LibrarySource {
   final bool published;
   final bool available;
   final int? lastSuccessfulScan;
+  final String? rootSnapshot;
+  final int? scanRulesVersion;
   const LibrarySource({
     required this.id,
     required this.path,
@@ -27,6 +29,8 @@ class LibrarySource {
     required this.published,
     required this.available,
     this.lastSuccessfulScan,
+    this.rootSnapshot,
+    this.scanRulesVersion,
   });
 }
 
@@ -45,7 +49,13 @@ class SourceScan {
   final LibrarySource source;
   final ScanResult result;
   final bool complete;
-  const SourceScan(this.source, this.result, {required this.complete});
+  final String rootSnapshot;
+  const SourceScan(
+    this.source,
+    this.result, {
+    required this.complete,
+    required this.rootSnapshot,
+  });
 }
 
 /// The only writer for the durable library inventory. SQLite stays local to the
@@ -69,7 +79,7 @@ class LibraryStore {
     _db.execute('PRAGMA busy_timeout = 5000');
     final version =
         _db.select('PRAGMA user_version').single['user_version'] as int;
-    if (version > 3) {
+    if (version > 4) {
       throw StateError('Library database is newer than this application');
     }
     if (version == 0) {
@@ -139,6 +149,13 @@ class LibraryStore {
         PRAGMA user_version = 3;
       ''');
     }
+    if (version < 4) {
+      _db.execute('''
+        ALTER TABLE sources ADD COLUMN root_snapshot TEXT;
+        ALTER TABLE sources ADD COLUMN scan_rules_version INTEGER;
+        PRAGMA user_version = 4;
+      ''');
+    }
     final row = _db
         .select('SELECT server_id FROM library_state WHERE singleton = 1')
         .single;
@@ -177,6 +194,8 @@ class LibraryStore {
     published: (row['published'] as int) == 1,
     available: (row['available'] as int) == 1,
     lastSuccessfulScan: row['last_successful_scan'] as int?,
+    rootSnapshot: row['root_snapshot'] as String?,
+    scanRulesVersion: row['scan_rules_version'] as int?,
   );
 
   Future<LibrarySource> addSource(String value, {bool published = true}) async {
@@ -314,6 +333,38 @@ class LibraryStore {
     return _decodePackage(row, source);
   }
 
+  List<Package> packagesForSource(String sourceId) {
+    final rows = _db.select(
+      '''
+      SELECT p.* FROM packages p
+      JOIN package_sources ps ON ps.package_id = p.id
+      WHERE ps.source_id = ?
+      ORDER BY p.path COLLATE NOCASE
+    ''',
+      [sourceId],
+    );
+    return [
+      for (final row in rows)
+        _decodePackage(row, _decodeSource(row['source_snapshot'] as String)),
+    ];
+  }
+
+  bool sourceOverridesChanged(String sourceId, Map<String, dynamic> overrides) {
+    final rows = _db.select(
+      '''
+      SELECT p.path,p.override_snapshot FROM packages p
+      JOIN package_sources ps ON ps.package_id = p.id
+      WHERE ps.source_id = ?
+    ''',
+      [sourceId],
+    );
+    return rows.any(
+      (row) =>
+          row['override_snapshot'] !=
+          _json(overrides[row['path'] as String] as Map?),
+    );
+  }
+
   List<IndexedPackage> packages({bool publishedOnly = false}) {
     final rows = _db.select('''
       SELECT p.*,
@@ -398,9 +449,12 @@ class LibraryStore {
       }
       _db.execute(
         '''
-        UPDATE sources SET available=1,last_successful_scan=?,last_error=NULL WHERE id=?
+        UPDATE sources SET
+          available=1,last_successful_scan=?,last_error=NULL,
+          root_snapshot=?,scan_rules_version=?
+        WHERE id=?
       ''',
-        [now, source.id],
+        [now, scan.rootSnapshot, LibraryScanner.cacheVersion, source.id],
       );
       for (final package in scan.result.packages) {
         final id = package.key;

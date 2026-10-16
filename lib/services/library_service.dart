@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import 'dart:convert';
 import 'dart:io';
 import '../core/files.dart';
 import '../core/library.dart';
@@ -64,7 +65,7 @@ class LibraryService {
 
   /// A cancelled or inaccessible scan leaves the last committed package set
   /// intact. Only a complete source enumeration reconciles removed paths.
-  Future<List<String>> scan({Cancellation? cancel}) async {
+  Future<List<String>> scan({Cancellation? cancel, bool force = false}) async {
     if (_scanning) throw StateError('A library scan is already running');
     _scanning = true;
     try {
@@ -83,25 +84,57 @@ class LibraryService {
         if (type != expected) {
           final issue = '${source.path}: source unavailable or changed type';
           scans.add(
-            SourceScan(source, ScanResult(const [], [issue]), complete: false),
+            SourceScan(
+              source,
+              ScanResult(const [], [issue]),
+              complete: false,
+              rootSnapshot: source.rootSnapshot ?? '',
+            ),
           );
           allIssues.add(issue);
           continue;
         }
-        final result = await _scanner.scan(
-          [source.path],
-          cancel: cancel,
-          overrides: overrides,
-          cached: store.cached,
-        );
+        final rootSnapshot = await _snapshot(source.path);
+        final known = store.packagesForSource(source.id);
+        final refreshKnown =
+            source.scanRulesVersion != LibraryScanner.cacheVersion ||
+            store.sourceOverridesChanged(source.id, overrides);
+        if (!force &&
+            source.rootSnapshot != null &&
+            !refreshKnown &&
+            source.rootSnapshot == rootSnapshot) {
+          continue;
+        }
+        final result =
+            !force &&
+                known.isNotEmpty &&
+                (source.rootSnapshot == null || refreshKnown)
+            ? await _scanner.refresh(
+                known,
+                cancel: cancel,
+                overrides: overrides,
+              )
+            : await _scanner.scan(
+                [source.path],
+                cancel: cancel,
+                overrides: overrides,
+                cached: store.cached,
+              );
         // A scanner exception is represented as an issue. It is unsafe to use
         // that incomplete walk as proof that unrelated files were deleted.
         final complete = result.issues.isEmpty;
-        scans.add(SourceScan(source, result, complete: complete));
+        scans.add(
+          SourceScan(
+            source,
+            result,
+            complete: complete,
+            rootSnapshot: rootSnapshot,
+          ),
+        );
         allIssues.addAll(result.issues);
       }
       cancel?.check();
-      store.commit(scans);
+      if (scans.isNotEmpty) store.commit(scans);
       return allIssues;
     } finally {
       _scanning = false;
@@ -109,4 +142,13 @@ class LibraryService {
   }
 
   Future<void> close() => store.close();
+
+  Future<String> _snapshot(String path) async {
+    final stat = await FileStat.stat(path);
+    return jsonEncode({
+      'size': stat.size,
+      'modified': stat.modified.microsecondsSinceEpoch,
+      'type': stat.type.toString(),
+    });
+  }
 }

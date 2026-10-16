@@ -129,6 +129,70 @@ class LibraryScanner {
   final _overrideSignatures = <String, String>{};
   static bool supported(String path) =>
       RegExp(r'\.(nsp|xci|nsz|xcz)$', caseSensitive: false).hasMatch(path);
+
+  Future<Package> _inspect(FileSource source, Map? override) async {
+    final matches = filenameTitleIds(source.name);
+    final manual = normalizeId(override?['titleId'] as String?);
+    final readable = await readPlaintextMetadata(source);
+    return Package(
+      source,
+      titleId:
+          manual ??
+          readable?.titleId ??
+          (matches.length == 1 ? matches.single : null),
+      evidence: manual != null
+          ? IdentityEvidence.manual
+          : readable != null
+          ? IdentityEvidence.package
+          : matches.length == 1
+          ? IdentityEvidence.filename
+          : IdentityEvidence.unknown,
+      packageGroupId: manual == null ? readable?.applicationId : null,
+      packageVersion: readable?.version,
+      groupOverride: normalizeId(override?['groupId'] as String?),
+      kindOverride:
+          ContentKind.values
+              .where((kind) => kind.name == override?['kind'])
+              .firstOrNull ??
+          (readable == null
+              ? null
+              : switch (readable.type) {
+                  0x80 => ContentKind.base,
+                  0x81 => ContentKind.update,
+                  0x82 => ContentKind.dlc,
+                  _ => ContentKind.unknown,
+                }),
+    );
+  }
+
+  /// Refreshes known package snapshots without recursively enumerating a
+  /// directory. This is used after a scanner-rule or manual-override change.
+  Future<ScanResult> refresh(
+    Iterable<Package> known, {
+    Cancellation? cancel,
+    Map<String, dynamic> overrides = const {},
+  }) async {
+    final packages = <Package>[];
+    final issues = <String>[];
+    for (final previous in known) {
+      cancel?.check();
+      try {
+        final source = await FileSource.open(previous.source.path);
+        final canonical = p.normalize(p.absolute(source.path));
+        final override = overrides[canonical] as Map?;
+        final package = await _inspect(source, override);
+        packages.add(package);
+        _cache[canonical] = package;
+        _overrideSignatures[canonical] = jsonEncode(override);
+      } on Cancelled {
+        rethrow;
+      } catch (error) {
+        issues.add('${previous.source.path}: $error');
+      }
+    }
+    return ScanResult(packages, issues);
+  }
+
   Future<ScanResult> scan(
     List<String> roots, {
     Cancellation? cancel,
@@ -163,39 +227,7 @@ class LibraryScanner {
             packages[canonical] = previous;
             return;
           }
-          final matches = filenameTitleIds(source.name);
-          final manual = normalizeId(override?['titleId'] as String?);
-          final readable = await readPlaintextMetadata(source);
-          final id =
-              manual ??
-              readable?.titleId ??
-              (matches.length == 1 ? matches.single : null);
-          final package = Package(
-            source,
-            titleId: id,
-            evidence: manual != null
-                ? IdentityEvidence.manual
-                : readable != null
-                ? IdentityEvidence.package
-                : id != null
-                ? IdentityEvidence.filename
-                : IdentityEvidence.unknown,
-            packageGroupId: manual == null ? readable?.applicationId : null,
-            packageVersion: readable?.version,
-            groupOverride: normalizeId(override?['groupId'] as String?),
-            kindOverride:
-                ContentKind.values
-                    .where((k) => k.name == override?['kind'])
-                    .firstOrNull ??
-                (readable == null
-                    ? null
-                    : switch (readable.type) {
-                        0x80 => ContentKind.base,
-                        0x81 => ContentKind.update,
-                        0x82 => ContentKind.dlc,
-                        _ => ContentKind.unknown,
-                      }),
-          );
+          final package = await _inspect(source, override);
           packages[canonical] = package;
           _cache[canonical] = package;
           _overrideSignatures[canonical] = jsonEncode(override);

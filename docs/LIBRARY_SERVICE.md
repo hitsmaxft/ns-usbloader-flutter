@@ -18,6 +18,14 @@ segment sizes and modification times are committed transactionally. A repeated
 scan can reuse unchanged stored metadata without rereading a package's bounded
 metadata probe. Split packages are represented as one logical package.
 
+For an unchanged source-root snapshot, the service does not walk the directory
+tree or create a new library revision. A filename-rule or manual-override
+change refreshes only the already indexed package paths. Where the filesystem
+provides recursive directory notifications, a debounced event starts a full
+discovery scan for new, removed, or renamed files. `scanIntervalSeconds` is the
+full-discovery fallback for NAS mounts and missed notifications; use a longer
+interval such as the example's six hours for a large remote library.
+
 If a source root disappears, its prior records remain in the index and are
 reported as unavailable. A successful complete enumeration is required before
 paths are reconciled as deleted. Cancelling a scan leaves the previous revision
@@ -45,8 +53,9 @@ to the intended subnet, and do not expose this service to the public internet.
 HTTP is useful for a trusted LAN but does not encrypt the optional bearer token.
 
 The service starts listening from its prior committed database before its first
-background scan. It retries scans at `scanIntervalSeconds` (15–86400 seconds).
-Stopping the service cancels a scan and active HTTP streams; no partial index is
+background scan. It uses directory events when available and runs full
+discovery at `scanIntervalSeconds` (15–86400 seconds) as a fallback. Stopping
+the service cancels a scan and active HTTP streams; no partial index is
 committed.
 
 `GET /healthz` is a small unauthenticated readiness endpoint returning `ok` and
