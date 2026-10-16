@@ -138,6 +138,33 @@ void main() {
       expect(selected.map((e) => e.name).toSet().length, 7);
     },
   );
+  test(
+    'scan recognizes explicit compact filename IDs without name guessing',
+    () async {
+      for (final name in [
+        'DaveTheDiver010097F018538000APPv0.nsp',
+        'DaveTheDiver010097F018538800UPDv65536.nsp',
+        'DaveTheDiver010097F018539001DLCv0.nsp',
+        'Mario (0100EA80032EA000).nsp',
+      ]) {
+        await fixture(name, [1, 2, 3]);
+      }
+
+      final result = await LibraryScanner().scan([temp.path]);
+      final dave = groupPackages(
+        result.packages,
+      ).singleWhere((group) => group.id == '010097F018538000');
+      expect(dave.count(ContentKind.base), 1);
+      expect(dave.count(ContentKind.update), 1);
+      expect(dave.count(ContentKind.dlc), 1);
+      expect(
+        result.packages.every(
+          (item) => item.evidence == IdentityEvidence.filename,
+        ),
+        isTrue,
+      );
+    },
+  );
   test('manual override changes and reset invalidate scan cache', () async {
     final file = await fixture('Mystery.nsp', [1]);
     final scanner = LibraryScanner();

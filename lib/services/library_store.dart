@@ -69,7 +69,7 @@ class LibraryStore {
     _db.execute('PRAGMA busy_timeout = 5000');
     final version =
         _db.select('PRAGMA user_version').single['user_version'] as int;
-    if (version > 2) {
+    if (version > 3) {
       throw StateError('Library database is newer than this application');
     }
     if (version == 0) {
@@ -130,6 +130,13 @@ class LibraryStore {
           icon_url TEXT
         );
         PRAGMA user_version = 2;
+      ''');
+    }
+    if (version < 3) {
+      _db.execute('''
+        ALTER TABLE packages
+          ADD COLUMN scanner_version INTEGER NOT NULL DEFAULT 1;
+        PRAGMA user_version = 3;
       ''');
     }
     final row = _db
@@ -300,7 +307,8 @@ class LibraryStore {
     if (rows.isEmpty) return null;
     final row = rows.single;
     if (row['source_snapshot'] != _sourceSnapshot(source) ||
-        row['override_snapshot'] != _json(override)) {
+        row['override_snapshot'] != _json(override) ||
+        row['scanner_version'] != LibraryScanner.cacheVersion) {
       return null;
     }
     return _decodePackage(row, source);
@@ -399,14 +407,15 @@ class LibraryStore {
         _db.execute('''
           INSERT INTO packages(
             id,path,source_snapshot,override_snapshot,title_id,evidence,group_override,
-            package_group_id,package_version,kind_override,observed_at
-          ) VALUES(?,?,?,?,?,?,?,?,?,?,?)
+            package_group_id,package_version,kind_override,scanner_version,observed_at
+          ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
           ON CONFLICT(id) DO UPDATE SET
             path=excluded.path,source_snapshot=excluded.source_snapshot,
             override_snapshot=excluded.override_snapshot,title_id=excluded.title_id,
             evidence=excluded.evidence,group_override=excluded.group_override,
             package_group_id=excluded.package_group_id,package_version=excluded.package_version,
-            kind_override=excluded.kind_override,observed_at=excluded.observed_at
+            kind_override=excluded.kind_override,scanner_version=excluded.scanner_version,
+            observed_at=excluded.observed_at
         ''', _encodePackage(package, now));
         _db.execute(
           '''
@@ -442,6 +451,7 @@ class LibraryStore {
     package.packageGroupId,
     package.packageVersion,
     package.kindOverride?.name,
+    LibraryScanner.cacheVersion,
     observedAt,
   ];
 

@@ -15,6 +15,26 @@ String? normalizeId(String? value) =>
     ? value.toUpperCase()
     : null;
 
+/// Finds explicit Title IDs in a package filename without using directory or
+/// game-name guesses. Compact dump names may immediately append APP, UPD or
+/// DLC after the 16 hexadecimal characters, so those markers are accepted as
+/// a deliberate boundary as well.
+Set<String> filenameTitleIds(String filename) {
+  final ids = <String>{};
+  for (final match in RegExp(
+    r'(?<![0-9a-fA-F])([0-9a-fA-F]{16})(?![0-9a-fA-F])',
+  ).allMatches(filename)) {
+    ids.add(match.group(1)!.toUpperCase());
+  }
+  for (final match in RegExp(
+    r'(?<![0-9a-fA-F])(0100[0-9a-fA-F]{12})(?=(?:APP|UPD|DLC)(?:[v._-]|\d|$))',
+    caseSensitive: false,
+  ).allMatches(filename)) {
+    ids.add(match.group(1)!.toUpperCase());
+  }
+  return ids;
+}
+
 /// Standard application ID relationships; never applied to a guessed name.
 (String, ContentKind) classifyId(String id) {
   final n = BigInt.parse(id, radix: 16);
@@ -102,6 +122,9 @@ class ScanResult {
 }
 
 class LibraryScanner {
+  /// Bump when filename or bounded plaintext metadata interpretation changes.
+  /// Persistent snapshots from earlier rules are then rescanned once.
+  static const cacheVersion = 2;
   final _cache = <String, Package>{};
   final _overrideSignatures = <String, String>{};
   static bool supported(String path) =>
@@ -140,10 +163,7 @@ class LibraryScanner {
             packages[canonical] = previous;
             return;
           }
-          final matches = RegExp(r'\[([0-9a-fA-F]{16})\]')
-              .allMatches(source.name)
-              .map((m) => m.group(1)!.toUpperCase())
-              .toSet();
+          final matches = filenameTitleIds(source.name);
           final manual = normalizeId(override?['titleId'] as String?);
           final readable = await readPlaintextMetadata(source);
           final id =
